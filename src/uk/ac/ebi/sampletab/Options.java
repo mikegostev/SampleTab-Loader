@@ -34,6 +34,9 @@ public class Options
  @Option( name = "-new", usage="Load new submissions")
  private boolean newSub;
 
+ @Option( name = "-o", usage="Output directory")
+ private String outDir;
+ 
  @Argument
  private List<String> dirs;
 
@@ -90,6 +93,11 @@ public class Options
  public boolean isNewSubmissions()
  {
   return newSub;
+ }
+
+ public String getOutDir()
+ {
+  return outDir;
  }
 
 }

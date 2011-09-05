@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.http.HttpEntity;
@@ -36,7 +37,7 @@ import com.pri.util.stream.StreamPump;
 
 public class STLoader
 {
-
+ static final String usage = "java -jar STLoader.jar [options...] <input file/dir> [ ... <input file/dir> ]";
  /**
   * @param args
   */
@@ -52,34 +53,40 @@ public class STLoader
   catch(CmdLineException e)
   {
    System.err.println(e.getMessage());
-   System.err.println("java -jar STLoader.jar [options...] input [output]");
+   System.err.println(usage);
    parser.printUsage(System.err);
    return;
   }
   
-  if( options.getDirs() == null || options.getDirs().size() != 2  )
+  if( options.getDirs() == null || options.getDirs().size() == 0  )
   {
-   System.err.println("java -jar STLoader.jar [options...] <input file/dir> <output dir>");
+   System.err.println(usage);
    parser.printUsage(System.err);
    return;
   }
   
-  File in = new File( options.getDirs().get(0) );
   
-
-  File[] infiles;
+  List<File> infiles = new ArrayList<File>();
   
-  if( in.isDirectory() )
-   infiles = in.listFiles();
-  else if( in.isFile() )
-   infiles = new File[]{ in };
-  else
+ 
+  for( String outf : options.getDirs() )
   {
-   System.err.println("Input file/directory "+options.getDirs().get(0)+" doesn't exist");
-   return;
+   File in = new File( outf );
+   
+   
+   if( in.isDirectory() )
+    infiles.addAll( Arrays.asList( in.listFiles() ) );
+   else if( in.isFile() )
+    infiles.add( in );
+   else
+   {
+    System.err.println("Input file/directory "+options.getDirs().get(0)+" doesn't exist");
+    return;
+   }
   }
   
-  if( infiles.length == 0 )
+  
+  if( infiles.size() == 0 )
   {
    System.err.println("No files to process");
    return;
@@ -87,7 +94,13 @@ public class STLoader
   
   boolean remote = options.isLoad() || options.isStore();
  
-  File outfile = new File( options.getDirs().get(1));
+  if( options.getOutDir() == null )
+  {
+   System.err.println("Output directory is not specified");
+   return;
+  }
+  
+  File outfile = new File( options.getOutDir() );
 
   if( outfile.isFile() )
   {
@@ -285,13 +298,27 @@ public class STLoader
 
      try
      {
+
+      Status sts;
+
+      if( options.isNewSubmissions() )
+       sts = Status.NEW;
+      else if( options.isUpdateSubmissions() )
+       sts = Status.UPDATE;
+      else
+       sts = Status.UPDATEORNEW;
+
       reqEntity.addPart(Constants.uploadHandlerParameter, new StringBody(SubmissionConstants.SUBMISSON_COMMAND));
       reqEntity.addPart(SubmissionConstants.SUBMISSON_KEY, new StringBody(key));
-      reqEntity.addPart(SubmissionConstants.SUBMISSON_STATUS, new StringBody(Status.NEW.name()));
+      reqEntity.addPart(SubmissionConstants.SUBMISSON_STATUS, new StringBody(sts.name()) );
 
       if(sbmId != null)
+      {
        reqEntity.addPart(SubmissionConstants.SUBMISSON_ID,
-         new StringBody(s.getAnnotation(Definitions.SUBMISSIONIDENTIFIER).getValue()));
+         new StringBody(sbmId));
+      
+       reqEntity.addPart(SubmissionConstants.MODULE_ID+"1", new StringBody(sbmId+"_MOD") );
+      }
       else
        sbmId = key;
 
@@ -305,19 +332,11 @@ public class STLoader
 
       reqEntity.addPart(SubmissionConstants.MODULE_DESCRIPTION + "1", new StringBody("AGE-TAB file"));
       
-      Status sts;
-      
-      if( options.isNewSubmissions() )
-       sts = Status.NEW;
-      else if( options.isUpdateSubmissions() )
-       sts = Status.UPDATE;
-      else
-       sts = Status.UPDATEORNEW;
-      
+  
       reqEntity.addPart(SubmissionConstants.MODULE_STATUS + "1", new StringBody(sts.name()));
 
       reqEntity.addPart(SubmissionConstants.ATTACHMENT_DESC + "2", new StringBody("SAMPLE-TAB file"));
-      reqEntity.addPart(SubmissionConstants.ATTACHMENT_STATUS + "2", new StringBody(Status.NEW.name()));
+      reqEntity.addPart(SubmissionConstants.ATTACHMENT_STATUS + "2", new StringBody(sts.name()));
       reqEntity.addPart(SubmissionConstants.ATTACHMENT_ID + "2", new StringBody("SAMPLE-TAB"));
 
       reqEntity.addPart(SubmissionConstants.MODULE_FILE + "1", new ByteArrayBody(atContent,
