@@ -79,7 +79,7 @@ public class STParser3
       sub.setAttachedObjects(objName, objs= new ArrayList<WellDefinedObject>());
      
      if( objs.size() < parts.size()-1 )
-      for( int k=0; k < parts.size()-1-objs.size(); k++ )
+      for( int k=parts.size()-1-objs.size(); k > 0 ; k-- )
        objs.add(null);
      
      

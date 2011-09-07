@@ -243,6 +243,7 @@ public class STLoader
     {
      System.out.println("ERROR. See log file for details");
      log.println("File parsing error: " + e.getMessage());
+     e.printStackTrace();
      continue;
     }
 
