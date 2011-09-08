@@ -60,7 +60,7 @@
         </unzip>
 
     <!-- Put everything in ${build} into the MyProject-${DSTAMP}.jar file -->
- <jar jarfile="${dist}/STLoader.jar" basedir="${build}" manifest="MANIFEST.MF" />
+ <jar jarfile="${dist}/STConverter.jar" basedir="${build}" manifest="MANIFEST.MF" />
  
  </target>
 

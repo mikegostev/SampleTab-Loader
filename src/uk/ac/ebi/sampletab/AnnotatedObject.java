@@ -64,6 +64,9 @@ public class AnnotatedObject
   if( annotations == null )
    return false;
 
+  if( annotations.size() != othObj.getAnnotations().size() )
+   return false;
+  
   for( Attribute myat : annotations.values() )
   {
    Attribute othAttr = othObj.getAnnotation( myat.getName() );

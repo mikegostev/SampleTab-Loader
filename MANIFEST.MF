@@ -1,2 +1,2 @@
 Manifest-Version: 1.0
-Main-Class: uk.ac.ebi.sampletab.STLoader
+Main-Class: uk.ac.ebi.sampletab.STConverter

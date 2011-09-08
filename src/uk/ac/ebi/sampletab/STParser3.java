@@ -386,10 +386,11 @@ public class STParser3
    if( grpos == null )
     continue;
    
-   boolean found = false;
    
    for( WellDefinedObject obj : grpos )
    {
+
+    boolean found = false;
     for( WellDefinedObject subobj  : subos)
     {
      if( obj.equals(subobj) )
@@ -402,7 +403,7 @@ public class STParser3
     
     if( ! found )
     {
-     obj.setID(Definitions.MODIDPREFIX+atClName.substring(0,3)+(counter++));
+     obj.setID(atClName.substring(0,3)+(counter++));
      subos.add(obj);
     }
    }

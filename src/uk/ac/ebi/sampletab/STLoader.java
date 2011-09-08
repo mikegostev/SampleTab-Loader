@@ -80,7 +80,7 @@ public class STLoader
     infiles.add( in );
    else
    {
-    System.err.println("Input file/directory "+options.getDirs().get(0)+" doesn't exist");
+    System.err.println("Input file/directory '"+in.getAbsolutePath()+"' doesn't exist");
     return;
    }
   }

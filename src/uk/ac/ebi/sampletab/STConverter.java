@@ -94,143 +94,184 @@ public class STConverter
   }
 
   final Log log;
+  final Log failedLog;
 
   try
   {
-   log = new Log(new PrintWriter(new File(outDir, ".log")));
+   log = new Log(new PrintWriter(new File(outDir, "log.txt")), true);
   }
   catch(FileNotFoundException e1)
   {
-   System.err.println("Can't create log file: " + new File(outDir, ".log").getAbsolutePath());
+   System.err.println("Can't create log file: " + new File(outDir, "log.txt").getAbsolutePath());
    return;
   }
 
-  int nCores = Runtime.getRuntime().availableProcessors();
-
-  log.write("Starting " + nCores + " thread" + (nCores > 1 ? "s" : ""));
-
-  ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-
-  for(int i = 0; i < nCores; i++)
-  {
-
-   final int thrdNum = i + 1;
-
-   exec.execute(new Runnable()
-   {
-
-    @Override
-    public void run()
-    {
-     Thread.currentThread().setName("Th" + thrdNum);
-
-     File f;
-
-     while((f = infiles.poll()) != null)
-     {
-      try
-      {
-
-       Submission s = null;
-
-       long time = System.currentTimeMillis();
-
-       System.out.println("Parsing file: " + f);
-       log.write("Parsing file: " + f);
-
-       String stContent = null;
-       try
-       {
-        stContent = StringUtils.readUnicodeFile(f);
-        s = STParser3.readST(stContent);
-       }
-       catch(Exception e)
-       {
-        System.out.println("ERROR. See log file for details");
-        log.write("File parsing error: " + e.getMessage());
-        e.printStackTrace();
-        continue;
-       }
-
-       String sbmId = s.getAnnotation(Definitions.SUBMISSIONIDENTIFIER).getValue();
-
-       if(sbmId == null)
-       {
-        log.write("ERROR: Can't retrieve submission identifier");
-        continue;
-       }
-
-       log.write("Parsing success. " + (System.currentTimeMillis() - time) + "ms");
-
-       log.write("Converting to AGE-TAB");
-
-       File subOutDir = new File(outDir, sbmId);
-
-       if(!subOutDir.isDirectory() && !subOutDir.mkdir())
-       {
-        log.write("ERROR: Can't create output directory: " + subOutDir.getAbsolutePath());
-        System.exit(1);
-       }
-
-       FileOutputStream fos = new FileOutputStream(new File(subOutDir, f.getName() + ".age.txt"));
-
-       try
-       {
-        ATWriter.writeAgeTab(s, fos);
-
-        fos.close();
-       }
-       catch(IOException e)
-       {
-       }
-
-       try
-       {
-        PrintWriter stOut = new PrintWriter(new File(subOutDir, f.getName()), "UTF-8");
-        stOut.write(stContent);
-        stOut.close();
-       }
-       catch(UnsupportedEncodingException e)
-       {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-       }
-
-      }
-      catch(IOException e)
-      {
-       log.write("ERROR: IOException. "+e.getMessage());
-      }
-      catch (Exception e) 
-      {
-       log.write("ERROR: Unknown Exception. "+e.getClass().getName()+" "+e.getMessage());
-      }
-     }
-    }
-   });
-  }
-  
   try
   {
-   exec.shutdown();
-   
-   exec.awaitTermination(24, TimeUnit.HOURS);
+   failedLog = new Log(new PrintWriter(new File(outDir, "failed.txt")),false);
   }
-  catch(InterruptedException e)
+  catch(FileNotFoundException e1)
   {
+   System.err.println("Can't create log file: " + new File(outDir, "failed.txt").getAbsolutePath());
+   return;
+  }
+
+  if( infiles.size() == 1 )
+   new Converter("Main", outDir, log, failedLog).run();
+  else
+  {
+   int nTheads = Runtime.getRuntime().availableProcessors();
+   
+   if( infiles.size() < nTheads )
+    nTheads = infiles.size();
+   
+   log.write("Starting " + nTheads + " threads");
+   
+   ExecutorService exec = Executors.newFixedThreadPool(nTheads);
+   
+   for(int i = 1; i <= nTheads; i++)
+    exec.execute(new Converter("Thr"+i, outDir, log, failedLog));
+   
+   try
+   {
+    exec.shutdown();
+    
+    exec.awaitTermination(72, TimeUnit.HOURS);
+   }
+   catch(InterruptedException e)
+   {
+   }
   }
   
+  
   log.shutdown();
+  failedLog.shutdown();
  }
 
+ static class Converter implements Runnable
+ {
+  private String threadName;
+  
+  private Log log;
+  private Log failedLog;
+  
+  private File outDir;
+
+  public Converter(String threadName, File outDir, Log log, Log failedLog)
+  {
+   super();
+   this.threadName = threadName;
+   this.log = log;
+   this.failedLog = failedLog;
+   this.outDir = outDir;
+  }
+
+  @Override
+  public void run()
+  {
+   Thread.currentThread().setName(threadName);
+
+   File f;
+
+   while((f = infiles.poll()) != null)
+   {
+    try
+    {
+
+     Submission s = null;
+
+     long time = System.currentTimeMillis();
+
+     System.out.println("Parsing file: " + f);
+     log.write("Parsing file: " + f);
+
+     String stContent = null;
+     try
+     {
+      stContent = StringUtils.readUnicodeFile(f);
+      s = STParser3.readST(stContent);
+     }
+     catch(Exception e)
+     {
+      failedLog.write(f.getAbsolutePath());
+      
+      System.out.println("ERROR. See log file for details");
+      log.write("ERROR: File parsing error: " + e.getMessage());
+      continue;
+     }
+
+     String sbmId = s.getAnnotation(Definitions.SUBMISSIONIDENTIFIER).getValue();
+
+     if(sbmId == null)
+     {
+      log.write("ERROR: Can't retrieve submission identifier");
+      continue;
+     }
+
+     log.write("Parsing success. " + (System.currentTimeMillis() - time) + "ms");
+
+     log.write("Converting to AGE-TAB");
+     time=System.currentTimeMillis();
+     
+     File subOutDir = new File(outDir, sbmId);
+
+     if(!subOutDir.isDirectory() && !subOutDir.mkdir())
+     {
+      log.write("ERROR: Can't create output directory: " + subOutDir.getAbsolutePath());
+      System.exit(1);
+     }
+
+     File ageFile = new File(subOutDir, f.getName() + ".age.txt");
+     
+     FileOutputStream fos = new FileOutputStream(ageFile);
+
+     try
+     {
+      ATWriter.writeAgeTab(s, fos);
+
+      fos.close();
+     }
+     catch(IOException e)
+     {
+     }
+     
+     log.write("Converting success. " + (System.currentTimeMillis() - time) + "ms");
+
+     try
+     {
+      PrintWriter stOut = new PrintWriter(new File(subOutDir, f.getName()), "UTF-8");
+      stOut.write(stContent);
+      stOut.close();
+     }
+     catch(UnsupportedEncodingException e)
+     {
+      e.printStackTrace();
+     }
+
+    }
+    catch(IOException e)
+    {
+     log.write("ERROR: IOException. "+e.getMessage());
+    }
+    catch (Exception e) 
+    {
+     log.write("ERROR: Unknown Exception. "+e.getClass().getName()+" "+e.getMessage());
+    }
+   }
+  }  
+ }
+ 
  static class Log
  {
   private PrintWriter log;
   private Lock        lock = new ReentrantLock();
+  
+  private boolean showThreads;
 
-  Log(PrintWriter l)
+  Log(PrintWriter l, boolean th)
   {
    log = l;
+   showThreads = th;
   }
 
   public void shutdown()
@@ -244,7 +285,10 @@ public class STConverter
 
    try
    {
-    log.println("[" + Thread.currentThread().getName() + "] " + msg);
+    if( showThreads )
+     log.print("[" + Thread.currentThread().getName() + "] ");
+    
+    log.println(msg);
    }
    finally
    {

@@ -12,6 +12,9 @@ public class STConverterOptions
  
  @Argument
  private List<String> dirs;
+ 
+// @Option( name = "-u", usage="Update files")
+ private boolean update;
 
  
  public String getOutDir()
@@ -22,6 +25,11 @@ public class STConverterOptions
  public List<String> getDirs()
  {
   return dirs;
+ }
+
+ public boolean isUpdate()
+ {
+  return update;
  }
 
 }

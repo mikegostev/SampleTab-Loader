@@ -111,7 +111,10 @@ public class ATWriter
      for( WellDefinedObject obj : objs )
      {
       out.print( TAB );
-      out.print( obj.getAnnotation(fld).getID() );
+      
+      Attribute attr = obj.getAnnotation(fld);
+      
+      out.print( attr == null?"":attr.getID() );
      }
      
     }
@@ -176,128 +179,134 @@ public class ATWriter
    
   }
   
+  List<ValueExtractor> extrs = new ArrayList<ValueExtractor>();
+
   for( List<Sample> sBlock : sub.getSampleBlocks() )
   {
 //   List<Attribute> protoAttrMap = new LinkedList<Attribute>();
 //   List<Group> protoGrpMap = new LinkedList<Group>();
 //   List<Sample> protoDervMap = new LinkedList<Sample>();
-   
-   Sample proto = new Sample();
-   proto.setID(Definitions.PROTOTYPEID);
-   
-   Sample s0 = sBlock.get(0);
-   
-   for( Attribute at : s0.getAnnotations() )
-    proto.addAnnotation(at);
-
-   if( s0.getGroups() != null )
-   {
-    for( Group g : s0.getGroups() )
-     proto.addGroup(g);
-   }
-   
-   if( s0.getDeriverFromSamples() != null )
-   {
-    for( Sample s : s0.getDeriverFromSamples() )
-     proto.addDerivedFrom( s );
-   }
-
-   for( int i=1; i < sBlock.size(); i++ )
-   {
-    Sample s = sBlock.get(i);
-    
-    Iterator<Attribute> attIter = proto.getAnnotations().iterator();
-    
-    while( attIter.hasNext() )
-    {
-     Attribute at = attIter.next();
-     Attribute chkat = s.getAnnotation( at.getName() );
-     
-     if( chkat == null || ! at.equals( chkat ) )
-      attIter.remove();
-    }
-    
-    if( s.getGroups() == null )
-     proto.getGroups().clear();
-    else
-    {
-     Iterator<? extends Group> grpIter = proto.getGroups().iterator();
-     
-     while( grpIter.hasNext() )
-     {
-      Group g = grpIter.next();
-      
-      boolean found = false;
-      
-      for( Group sg : s.getGroups() )
-      {
-       if( sg.getID().equals(g.getID()) )
-       {
-        found=true;
-        break;
-       }
-      }
-      
-      if( ! found )
-       grpIter.remove();
-     }
-    }
-    
-    if( s.getDeriverFromSamples() == null )
-     proto.getDeriverFromSamples().clear();
-    else
-    {
-     Iterator<? extends Sample> drvIter = proto.getDeriverFromSamples().iterator();
-     
-     while( drvIter.hasNext() )
-     {
-      Sample dfs = drvIter.next();
-      
-      boolean found = false;
-      
-      for( Sample sdfs : s.getDeriverFromSamples() )
-      {
-       if( sdfs.getID().equals(dfs.getID()) )
-       {
-        found=true;
-        break;
-       }
-      }
-      
-      if( ! found )
-       drvIter.remove();
-     }
-    }
-
-    
-   }
-   
-   List<ValueExtractor> extrs = new ArrayList<ValueExtractor>();
-   
-   if( proto.getAnnotations().size() > 0 )
-   {
-    AttributeInfo sampleInf = new AttributeInfo(null);
-    
-    collectAttributesInfo(proto, sampleInf);
-    
-    for( AttributeInfo ati : sampleInf.getQualifiers() )
-     createAttributeExtractor(ati, extrs, null);
-   }
-   
-   for( int k=0; k < proto.getDeriverFromSamples().size(); k++ )
-    extrs.add( new DerivedFromRelationExtractor( Definitions.DERIVEDFROM ,null, k) );
-   
-   for( int k=0; k < proto.getGroups().size(); k++ )
-    extrs.add( new GroupRelationExtractor( Definitions.BELONGSTO ,null, k) );
-   
-   if( extrs.size() > 0 )
-   {
-    out.println();
-    writeHeader(extrs, out);
-    writeSample( proto, extrs, out );
-   }
-   
+   Sample proto = null;
    extrs.clear();
+   
+   if( sBlock.size() > 1 )
+   {
+
+    proto = new Sample();
+    proto.setID(Definitions.PROTOTYPEID);
+
+    Sample s0 = sBlock.get(0);
+
+    for(Attribute at : s0.getAnnotations())
+     proto.addAnnotation(at);
+
+    if(s0.getGroups() != null)
+    {
+     for(Group g : s0.getGroups())
+      proto.addGroup(g);
+    }
+
+    if(s0.getDeriverFromSamples() != null)
+    {
+     for(Sample s : s0.getDeriverFromSamples())
+      proto.addDerivedFrom(s);
+    }
+
+    for(int i = 1; i < sBlock.size(); i++)
+    {
+     Sample s = sBlock.get(i);
+
+     Iterator<Attribute> attIter = proto.getAnnotations().iterator();
+
+     while(attIter.hasNext())
+     {
+      Attribute at = attIter.next();
+      Attribute chkat = s.getAnnotation(at.getName());
+
+      if(chkat == null || !at.equals(chkat))
+       attIter.remove();
+     }
+
+     if(s.getGroups() == null)
+      proto.getGroups().clear();
+     else
+     {
+      Iterator< ? extends Group> grpIter = proto.getGroups().iterator();
+
+      while(grpIter.hasNext())
+      {
+       Group g = grpIter.next();
+
+       boolean found = false;
+
+       for(Group sg : s.getGroups())
+       {
+        if(sg.getID().equals(g.getID()))
+        {
+         found = true;
+         break;
+        }
+       }
+
+       if(!found)
+        grpIter.remove();
+      }
+     }
+
+     if(s.getDeriverFromSamples() == null)
+      proto.getDeriverFromSamples().clear();
+     else
+     {
+      Iterator< ? extends Sample> drvIter = proto.getDeriverFromSamples().iterator();
+
+      while(drvIter.hasNext())
+      {
+       Sample dfs = drvIter.next();
+
+       boolean found = false;
+
+       for(Sample sdfs : s.getDeriverFromSamples())
+       {
+        if(sdfs.getID().equals(dfs.getID()))
+        {
+         found = true;
+         break;
+        }
+       }
+
+       if(!found)
+        drvIter.remove();
+      }
+     }
+
+    }
+
+
+    if(proto.getAnnotations().size() > 0)
+    {
+     AttributeInfo sampleInf = new AttributeInfo(null);
+
+     collectAttributesInfo(proto, sampleInf);
+
+     for(AttributeInfo ati : sampleInf.getQualifiers())
+      createAttributeExtractor(ati, extrs, null);
+    }
+
+    for(int k = 0; k < proto.getDeriverFromSamples().size(); k++)
+     extrs.add(new DerivedFromRelationExtractor(Definitions.DERIVEDFROM, null, k));
+
+    for(int k = 0; k < proto.getGroups().size(); k++)
+     extrs.add(new GroupRelationExtractor(Definitions.BELONGSTO, null, k));
+
+    if(extrs.size() > 0)
+    {
+     out.println();
+     writeHeader(extrs, out);
+     writeSample(proto, extrs, out);
+    }
+
+    extrs.clear();
+   }
    
    AttributeInfo sampleAttrInfo = new AttributeInfo( null );
    int nGrp=0, nDFSamples=0;
@@ -305,29 +314,31 @@ public class ATWriter
    for( Sample s : sBlock )
    {
     collectAttributesInfo(s, sampleAttrInfo);
-    
-    int n = 0;
-    
-    for( Group sg : s.getGroups() )
-    {
-     if( proto.getGroup(sg.getID()) == null )
-      n++;
-    }
-    
-    if( n > nGrp )
-     nGrp=n;
-    
-    n = 0;
-    
-    for( Sample dfs : s.getDeriverFromSamples())
-    {
-     if( proto.getDeriverFromSample(dfs.getID()) == null )
-      n++;
-    }
-    
-    if( n > nDFSamples )
-     nDFSamples=n;
 
+    if(proto != null)
+    {
+     int n = 0;
+
+     for(Group sg : s.getGroups())
+     {
+      if(proto.getGroup(sg.getID()) == null)
+       n++;
+     }
+
+     if(n > nGrp)
+      nGrp = n;
+
+     n = 0;
+
+     for(Sample dfs : s.getDeriverFromSamples())
+     {
+      if(proto.getDeriverFromSample(dfs.getID()) == null)
+       n++;
+     }
+
+     if(n > nDFSamples)
+      nDFSamples = n;
+    }
    }
    
    
@@ -342,10 +353,10 @@ public class ATWriter
    }
    
    for( int k=0; k < nDFSamples; k++ )
-    extrs.add( new DerivedFromRelationExtractor( Definitions.DERIVEDFROM ,proto.getDeriverFromSamples(), k) );
+    extrs.add( new DerivedFromRelationExtractor( Definitions.DERIVEDFROM , proto!=null?proto.getDeriverFromSamples():null, k) );
    
    for( int k=0; k < nGrp; k++ )
-    extrs.add( new GroupRelationExtractor( Definitions.BELONGSTO ,proto.getGroups(), k) );
+    extrs.add( new GroupRelationExtractor( Definitions.BELONGSTO , proto!=null?proto.getGroups():null, k) );
   
    out.println();
    writeHeader(extrs, out);
@@ -381,6 +392,7 @@ public class ATWriter
   
   boolean finished = true;
   boolean firstLine = true;
+  
   do
   {
    if( ! firstLine )
