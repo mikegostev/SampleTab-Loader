@@ -1,13 +1,17 @@
 package uk.ac.ebi.sampletab;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
-import java.util.Arrays;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -22,13 +26,24 @@ import com.pri.util.StringUtils;
 
 public class STConverter
 {
- static final String        usage = "java -jar STConverter.jar -o outdir <input file/dir> [ ... <input file/dir> ]";
+ static final String SAMPLETAB = "sampletab.toload.txt";
+ 
+ static class InputFiles
+ {
+  File dir;
+  File sampletab;
+ }
+ 
+ static final String        usage = "java -jar STConverter.jar <input file/dir> [ ... <input file/dir> ]";
 
- static private Queue<File> infiles;
-
+ static private Queue<InputFiles> infiles;
+ static private STConverterOptions options;
+ 
+ static Log stdout = new PrintStreamLog(System.out, false);
+ 
  public static void main(String[] args)
  {
-  STConverterOptions options = new STConverterOptions();
+  options = new STConverterOptions();
   CmdLineParser parser = new CmdLineParser(options);
 
   try
@@ -50,21 +65,27 @@ public class STConverter
    return;
   }
 
-  infiles = new LinkedBlockingQueue<File>();
+  infiles = new LinkedBlockingQueue<InputFiles>();
 
+  Set<String> processedDirs = new HashSet<String>();
+  
   for(String outf : options.getDirs())
   {
    File in = new File(outf);
 
-   if(in.isDirectory())
-    infiles.addAll(Arrays.asList(in.listFiles()));
-   else if(in.isFile())
-    infiles.add(in);
-   else
+   if( ! in.exists() )
    {
-    System.err.println("Input file/directory '" + outf + "' doesn't exist");
-    return;
+    System.err.println("Input directory '" + outf + "' doesn't exist");
+    System.exit(1);
    }
+   else if( ! in.isDirectory() )
+   {
+    System.err.println("'" + outf + "' is not a directory");
+    System.exit(1);
+   }
+   
+   collectInput( in, infiles, processedDirs ) ;
+
   }
 
   if(infiles.size() == 0)
@@ -73,51 +94,57 @@ public class STConverter
    return;
   }
 
-  if(options.getOutDir() == null)
-  {
-   System.err.println("Output directory is not specified");
-   return;
-  }
+//  if(options.getOutDir() == null)
+//  {
+//   System.err.println("Output directory is not specified");
+//   return;
+//  }
 
-  final File outDir = new File(options.getOutDir());
+//  final File outDir = new File(options.getOutDir());
 
-  if(outDir.isFile())
-  {
-   System.err.println("Output path should point to a directory");
-   return;
-  }
-
-  if(!outDir.exists() && !outDir.mkdirs())
-  {
-   System.err.println("Can't create output directory");
-   return;
-  }
+//  if(outDir.isFile())
+//  {
+//   System.err.println("Output path should point to a directory");
+//   return;
+//  }
+//
+//  if(!outDir.exists() && !outDir.mkdirs())
+//  {
+//   System.err.println("Can't create output directory");
+//   return;
+//  }
 
   final Log log;
   final Log failedLog;
 
   try
   {
-   log = new Log(new PrintWriter(new File(outDir, "log.txt")), true);
+   if( options.getLogFileName() != null )
+    log = new PrintStreamLog(new PrintStream( new File(options.getLogFileName()) ), true);
+   else
+    log = new PrintStreamLog( System.err , true);
   }
-  catch(FileNotFoundException e1)
+  catch(IOException e1)
   {
-   System.err.println("Can't create log file: " + new File(outDir, "log.txt").getAbsolutePath());
+   System.err.println("Can't create log file: " + options.getLogFileName());
    return;
   }
 
   try
   {
-   failedLog = new Log(new PrintWriter(new File(outDir, "failed.txt")),false);
+   if( options.getFailedFileName() != null )
+    failedLog = new PrintStreamLog(new PrintStream( new File(options.getFailedFileName()) ), false);
+   else
+    failedLog = new NullLog();
   }
-  catch(FileNotFoundException e1)
+  catch(IOException e1)
   {
-   System.err.println("Can't create log file: " + new File(outDir, "failed.txt").getAbsolutePath());
+   System.err.println("Can't create failed log file: " + options.getFailedFileName());
    return;
   }
 
   if( infiles.size() == 1 )
-   new Converter("Main", outDir, log, failedLog).run();
+   new Converter("Main", log, failedLog).run();
   else
   {
    int nTheads = Runtime.getRuntime().availableProcessors();
@@ -130,7 +157,7 @@ public class STConverter
    ExecutorService exec = Executors.newFixedThreadPool(nTheads);
    
    for(int i = 1; i <= nTheads; i++)
-    exec.execute(new Converter("Thr"+i, outDir, log, failedLog));
+    exec.execute(new Converter("Thr"+i, log, failedLog));
    
    try
    {
@@ -155,15 +182,14 @@ public class STConverter
   private Log log;
   private Log failedLog;
   
-  private File outDir;
-
-  public Converter(String threadName, File outDir, Log log, Log failedLog)
+  private static DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z");
+  
+  public Converter(String threadName, Log log, Log failedLog)
   {
    super();
    this.threadName = threadName;
    this.log = log;
    this.failedLog = failedLog;
-   this.outDir = outDir;
   }
 
   @Override
@@ -171,10 +197,12 @@ public class STConverter
   {
    Thread.currentThread().setName(threadName);
 
-   File f;
+   InputFiles f;
 
    while((f = infiles.poll()) != null)
    {
+    String dirName = " ("+f.dir.getName()+")";
+
     try
     {
 
@@ -182,21 +210,52 @@ public class STConverter
 
      long time = System.currentTimeMillis();
 
-     System.out.println("Parsing file: " + f);
-     log.write("Parsing file: " + f);
+     
+     File subOutDir = new File(f.dir, "age");
+     
+     if( !subOutDir.isDirectory() && !subOutDir.mkdir() )
+     {
+      log.write("ERROR: Can't create output directory: " + subOutDir.getAbsolutePath()+dirName);
+      System.exit(1);
+     }
+
+     File ageFile = new File(subOutDir, f.dir.getName() + ".age.txt");
+
+     if( options.isUpdate() && ageFile.exists() && ageFile.lastModified() >= f.sampletab.lastModified() )
+     {
+      log.write("File '"+ageFile+"' is up-to-date"+dirName);
+      continue;
+     }
+     
+     //     System.out.println("Parsing file: " + f);
+     log.write("Parsing file: " + f.sampletab.getAbsolutePath());
+    
 
      String stContent = null;
      try
      {
-      stContent = StringUtils.readUnicodeFile(f);
+      stContent = StringUtils.readUnicodeFile(f.sampletab);
+      
+      int l = stContent.length();
+      int p=0;
+      
+      for( p=0; p < l; p++ )
+       if( stContent.charAt(p) == '[' )
+        break;
+      
+      if( p == l )
+       throw new STParseException("No [MSI] section"+dirName);
+      else if( p > 0 )
+       stContent=stContent.substring(p);
+       
       s = STParser3.readST(stContent);
      }
      catch(Exception e)
      {
-      failedLog.write(f.getAbsolutePath());
+      failedLog.write(f.dir.getAbsolutePath());
       
-      System.out.println("ERROR. See log file for details");
-      log.write("ERROR: File parsing error: " + e.getMessage());
+      log.write("ERROR: File parsing error: " + e.getMessage()+dirName);
+      log.printStackTrace( e );
       continue;
      }
 
@@ -204,71 +263,135 @@ public class STConverter
 
      if(sbmId == null)
      {
-      log.write("ERROR: Can't retrieve submission identifier");
+      log.write("ERROR: Can't retrieve submission identifier"+dirName);
+      failedLog.write(f.dir.getAbsolutePath());
       continue;
      }
+     
+     
+     log.write("Parsing success. " + (System.currentTimeMillis() - time) + "ms"+dirName);
 
-     log.write("Parsing success. " + (System.currentTimeMillis() - time) + "ms");
-
-     log.write("Converting to AGE-TAB");
+     log.write("Converting to AGE-TAB"+dirName);
      time=System.currentTimeMillis();
      
-     File subOutDir = new File(outDir, sbmId);
-
-     if(!subOutDir.isDirectory() && !subOutDir.mkdir())
-     {
-      log.write("ERROR: Can't create output directory: " + subOutDir.getAbsolutePath());
-      System.exit(1);
-     }
-
-     File ageFile = new File(subOutDir, f.getName() + ".age.txt");
      
      FileOutputStream fos = new FileOutputStream(ageFile);
 
-     try
-     {
-      ATWriter.writeAgeTab(s, fos);
+     ATWriter.writeAgeTab(s, fos);
 
-      fos.close();
-     }
-     catch(IOException e)
-     {
-     }
+     fos.close();
      
-     log.write("Converting success. " + (System.currentTimeMillis() - time) + "ms");
+     log.write("Converting success. " + (System.currentTimeMillis() - time) + "ms"+dirName);
 
-     try
-     {
-      PrintWriter stOut = new PrintWriter(new File(subOutDir, f.getName()), "UTF-8");
+      PrintWriter stOut = new PrintWriter(new File(subOutDir, "source.sampletab.txt"), "UTF-8");
       stOut.write(stContent);
       stOut.close();
-     }
-     catch(UnsupportedEncodingException e)
-     {
-      e.printStackTrace();
-     }
 
+     
+     File idFile = new File(subOutDir,".id");
+     PrintWriter metaOut = new PrintWriter( idFile, "UTF-8" );
+     metaOut.print(sbmId);
+     metaOut.close();
+
+     idFile = new File(subOutDir,".id."+ageFile.getName());
+     metaOut = new PrintWriter( idFile, "UTF-8" );
+     metaOut.print(sbmId+":module1");
+     metaOut.close();
+
+
+     String descr = s.getAnnotation(Definitions.SUBMISSIONDESCRIPTION).getValue();
+
+     if(descr == null)
+      descr = "Submission "+sbmId;
+
+     File descFile = new File(subOutDir,".description");
+     metaOut = new PrintWriter( descFile, "UTF-8" );
+     metaOut.print(descr);
+     metaOut.close();
+
+     
+     File modDescFile = new File(subOutDir,".description."+ageFile.getName());
+     metaOut = new PrintWriter( modDescFile, "UTF-8" );
+     metaOut.print("Data module for submisson '"+sbmId+"'. Converted from Sample-Tab at "+dateFormat.format(new Date()));
+     metaOut.close();
+
+     modDescFile = new File(subOutDir,".description."+f.sampletab.getName());
+     metaOut = new PrintWriter( modDescFile, "UTF-8" );
+     metaOut.print("Sample-Tab file'. Last mofified at "+dateFormat.format( new Date(f.sampletab.lastModified())));
+     metaOut.close();
+
+     stdout.write(f.dir.getAbsolutePath());
     }
     catch(IOException e)
     {
-     log.write("ERROR: IOException. "+e.getMessage());
+     log.write("ERROR: IOException. "+e.getMessage()+dirName);
+     failedLog.write(f.sampletab.getAbsolutePath());
+
+     log.printStackTrace( e );
     }
     catch (Exception e) 
     {
-     log.write("ERROR: Unknown Exception. "+e.getClass().getName()+" "+e.getMessage());
+     log.write("ERROR: Unknown Exception. "+e.getClass().getName()+" "+e.getMessage()+dirName);
+     failedLog.write(f.sampletab.getAbsolutePath());
+     
+     log.printStackTrace( e );
     }
    }
   }  
  }
  
- static class Log
+ static void collectInput( File in, Collection<InputFiles> infiles, Set<String> processedDirs )
  {
-  private PrintWriter log;
+  File[] files = in.listFiles();
+  
+  for( File f : files )
+  {
+   if( f.isDirectory() && ! processedDirs.contains(f.getAbsolutePath()) && options.isRecursive() )
+   {
+    collectInput(f, infiles, processedDirs);
+    processedDirs.add(f.getAbsolutePath());
+   }
+   else if( options.getStFileName().equals(f.getName()) && f.isFile() )
+   {
+    InputFiles ifls = new InputFiles();
+    
+    ifls.dir = in;
+    ifls.sampletab = f;
+    
+    infiles.add( ifls );
+   }
+    
+  }
+ }
+ 
+ 
+ 
+ static class NullLog implements Log
+ {
+  @Override
+  public void shutdown()
+  {
+  }
+
+  @Override
+  public void write(String msg)
+  {
+  }
+
+  @Override
+  public void printStackTrace(Exception e)
+  {
+  }
+ }
+ 
+ static class PrintStreamLog implements Log
+ {
+  private PrintStream log;
   private Lock        lock = new ReentrantLock();
   
   private boolean showThreads;
 
-  Log(PrintWriter l, boolean th)
+  PrintStreamLog(PrintStream l, boolean th)
   {
    log = l;
    showThreads = th;
@@ -295,6 +418,22 @@ public class STConverter
     lock.unlock();
    }
   }
+  
+  @Override
+  public void printStackTrace(Exception e)
+  {
+   lock.lock();
+
+   try
+   {
+    e.printStackTrace(log);
+   }
+   finally
+   {
+    lock.unlock();
+   }
+  }
+
  }
 
 }

@@ -30,8 +30,13 @@ public class STParser3
   List<String> headerLine = null; 
   List<String> prevLine = null; 
   
+  int lineNum = 0;
   while( reader.readLine(parts) != null )
   {
+   lineNum++;
+   
+   System.out.println(lineNum);
+   
    int emp=0;
    for( int k=parts.size()-1; k>=0 ; k-- )
     if( parts.get(k).trim().length() == 0 )
@@ -220,8 +225,8 @@ public class STParser3
         
         obj.addAnnotation( new Attribute( hdr, cellVal, i) );
        }
-       else if( ! cellVal.equals( prevLine.get(i) ) )
-        throw new STParseException("Object redefinition. Line: "+reader.getLineNumber()+" Col: "+(i+1));
+//       else if( ! cellVal.equals( prevLine.get(i) ) )
+//        throw new STParseException("Object redefinition. Line: "+reader.getLineNumber()+" Col: "+(i+1));
        
        attribute = null;
       }
@@ -236,8 +241,8 @@ public class STParser3
         if( cellVal.length() > 0 )
          attribute.addAnnotation(attribute=new Attribute(hdr,cellVal,i));
        }
-       else if( ! cellVal.equals( prevLine.get(i) ) )
-        throw new STParseException("Object redefinition. Line: "+reader.getLineNumber()+" Col: "+(i+1));
+//       else if( ! cellVal.equals( prevLine.get(i) ) )
+//        throw new STParseException("Object redefinition. Line: "+reader.getLineNumber()+" Col: "+(i+1));
 
       }
       else if( Definitions.TERMSOURCEREF.equals( hdr ) ||  Definitions.TERMSOURCEID.equals( hdr ) )
@@ -251,8 +256,8 @@ public class STParser3
         if( cellVal.length() > 0 )
          attribute.addAnnotation(new Attribute(hdr,cellVal,i));
        }
-       else if( ! cellVal.equals( prevLine.get(i) ) )
-        throw new STParseException("Object redefinition. Line: "+reader.getLineNumber()+" Col: "+(i+1));
+//       else if( ! cellVal.equals( prevLine.get(i) ) )
+//        throw new STParseException("Object redefinition. Line: "+reader.getLineNumber()+" Col: "+(i+1));
 
       }
       else
@@ -269,8 +274,8 @@ public class STParser3
          host.addAnnotation( attribute = new Attribute(hdr, cellVal, i) );
        
        }
-       else if( ! cellVal.equals( prevLine.get(i) ) )
-        throw new STParseException("Object redefinition. Line: "+reader.getLineNumber()+" Col: "+(i+1));
+//       else if( ! cellVal.equals( prevLine.get(i) ) )
+//        throw new STParseException("Object redefinition. Line: "+reader.getLineNumber()+" Col: "+(i+1));
 
       }
      }

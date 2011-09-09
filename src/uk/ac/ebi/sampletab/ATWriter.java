@@ -347,7 +347,7 @@ public class ATWriter
    {
     for( AttributeInfo sAttr : sampleAttrInfo.getQualifiers() )
     {
-     if( proto.getAnnotation(sAttr.getName()) == null )
+     if( proto == null || proto.getAnnotation(sAttr.getName()) == null )
       createAttributeExtractor(sAttr, extrs, null);
     }
    }
@@ -395,6 +395,8 @@ public class ATWriter
   
   do
   {
+   finished = true;
+   
    if( ! firstLine )
    {
     out.println();
