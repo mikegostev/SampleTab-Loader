@@ -412,6 +412,8 @@ public class ATWriter
 
     if( ve.hasValue() )
      finished = false;
+    else
+     System.out.println(ve.getHeader());
    }
   }
   while( ! finished );
