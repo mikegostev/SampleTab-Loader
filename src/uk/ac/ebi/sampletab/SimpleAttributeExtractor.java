@@ -28,7 +28,10 @@ public class SimpleAttributeExtractor implements ValueExtractor
  public String extract()
  {
   if( delivered || obj == null )
+  {
+   delivered = true;
    return "";
+  }
   
   delivered = true;
 

@@ -16,6 +16,9 @@ public class STConverterOptions
  @Option( name = "-u", usage="Update files")
  private boolean update;
 
+ @Option( name = "-o", usage="Output directory. (Default is the same as input)")
+ private String outDir;
+
  @Option( name = "-s", usage="SampleTab file name. (Default is "+STConverter.SAMPLETAB+")")
  private String stFileName;
 
@@ -54,6 +57,11 @@ public class STConverterOptions
  public String getFailedFileName()
  {
   return failedFileName;
+ }
+
+ public String getOutputDir()
+ {
+  return outDir;
  }
 
 

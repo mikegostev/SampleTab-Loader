@@ -387,6 +387,12 @@ public class ATWriter
   out.println();
   out.print(sample.getID());
   
+//  if( sample.getID().equals("SAME074631") )
+//  {
+//   out = System.out;
+//   System.out.println("'"+sample.getID()+"'");
+//  }
+
   for( ValueExtractor ve : extrs )
    ve.setSample(sample);
   
@@ -400,7 +406,7 @@ public class ATWriter
    if( ! firstLine )
    {
     out.println();
-    out.print(TAB);
+//    out.print(TAB);
    }
    else
     firstLine = false;
@@ -412,8 +418,6 @@ public class ATWriter
 
     if( ve.hasValue() )
      finished = false;
-    else
-     System.out.println(ve.getHeader());
    }
   }
   while( ! finished );

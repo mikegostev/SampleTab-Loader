@@ -35,8 +35,6 @@ public class STParser3
   {
    lineNum++;
    
-   System.out.println(lineNum);
-   
    int emp=0;
    for( int k=parts.size()-1; k>=0 ; k-- )
     if( parts.get(k).trim().length() == 0 )
@@ -139,6 +137,9 @@ public class STParser3
      {
       String hdr = headerLine.get(i);
       String cellVal = parts.get(i).trim();
+      
+      if( cellVal.length() == 0 )
+       continue;
       
       if( Definitions.SAMPLENAME.equals(hdr) )
       {

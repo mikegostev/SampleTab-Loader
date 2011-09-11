@@ -67,6 +67,8 @@ public class STConverter
 
   infiles = new LinkedBlockingQueue<InputFiles>();
 
+
+  
   Set<String> processedDirs = new HashSet<String>();
   
   for(String outf : options.getDirs())
@@ -93,6 +95,33 @@ public class STConverter
    System.err.println("No files to process");
    return;
   }
+  
+  File outDir=null;
+  
+  if( options.getOutputDir() != null )
+  {
+   if( options.getDirs().size() != 1 )
+   {
+    System.err.println("Only one input directory is allowed if output directory specified");
+    System.exit(1);
+   }
+   
+   outDir = new File( options.getOutputDir() );
+   
+   if( outDir.isFile() )
+   {
+    System.err.println("Output path should point to some directory");
+    System.exit(1);
+   }
+   
+   if( ! outDir.exists() && ! outDir.mkdirs() )
+   {
+    System.err.println("Can't create output direcory");
+    System.exit(1);
+   }
+  }
+//  else
+//   outDir = new File( options.getDirs().get(0) );
 
 //  if(options.getOutDir() == null)
 //  {
@@ -144,7 +173,7 @@ public class STConverter
   }
 
   if( infiles.size() == 1 )
-   new Converter("Main", log, failedLog).run();
+   new Converter(outDir!=null?new File(options.getDirs().get(0)):null, outDir, "Main", log, failedLog).run();
   else
   {
    int nTheads = Runtime.getRuntime().availableProcessors();
@@ -156,8 +185,10 @@ public class STConverter
    
    ExecutorService exec = Executors.newFixedThreadPool(nTheads);
    
+   File bDir = outDir!=null?new File(options.getDirs().get(0)):null;
+   
    for(int i = 1; i <= nTheads; i++)
-    exec.execute(new Converter("Thr"+i, log, failedLog));
+    exec.execute(new Converter(bDir,outDir,"Thr"+i, log, failedLog));
    
    try
    {
@@ -182,14 +213,21 @@ public class STConverter
   private Log log;
   private Log failedLog;
   
+  File baseDir;
+  File outDir;
+  
+  
   private static DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z");
   
-  public Converter(String threadName, Log log, Log failedLog)
+  public Converter(File bDir, File oDir, String threadName, Log log, Log failedLog)
   {
    super();
    this.threadName = threadName;
    this.log = log;
    this.failedLog = failedLog;
+   
+   baseDir = bDir;
+   outDir = oDir;
   }
 
   @Override
@@ -210,10 +248,22 @@ public class STConverter
 
      long time = System.currentTimeMillis();
 
+     File subOutDir;
      
-     File subOutDir = new File(f.dir, "age");
+     if( outDir != null )
+     {
+      String relPath = f.dir.getAbsolutePath().substring( baseDir.getAbsolutePath().length() );
+      
+      if( relPath.startsWith("/") )
+       relPath=relPath.substring(1);
+      
+      subOutDir = new File(outDir, relPath+"/age");
+       
+     }
+     else
+      subOutDir = new File(f.dir, "age");
      
-     if( !subOutDir.isDirectory() && !subOutDir.mkdir() )
+     if( !subOutDir.isDirectory() && !subOutDir.mkdirs() )
      {
       log.write("ERROR: Can't create output directory: " + subOutDir.getAbsolutePath()+dirName);
       System.exit(1);

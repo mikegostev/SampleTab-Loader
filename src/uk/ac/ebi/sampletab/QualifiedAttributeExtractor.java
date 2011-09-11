@@ -39,8 +39,11 @@ public class QualifiedAttributeExtractor implements ValueExtractor
  public String extract()
  {
   if( obj == null || pos >= obj.getValues().size() )
+  {
+   delivered = true;
    return "";
-
+  }
+  
   if( ! delivered )
   {
    delivered = true;
@@ -51,16 +54,16 @@ public class QualifiedAttributeExtractor implements ValueExtractor
    if( ve.hasValue() )
     return "";
   
-  pos++;  
-    
-  if( pos >= obj.getValues().size() )
-   return "";
+//  if( pos >= obj.getValues().size() )
+//   return "";
   
   Attribute nAttr = obj.getValues().get(pos);
   
   for( QualifierExtractor ve : qualifierExtractors )
    ve.setAttribute(nAttr);
-   
+  
+  pos++;  
+  
   return nAttr.getID();
  }
 
