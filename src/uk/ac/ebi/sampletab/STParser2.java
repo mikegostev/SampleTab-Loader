@@ -42,7 +42,7 @@ public class STParser2
   boolean sampleSection = false;
   List<String> headerLine = null; 
   
-  while( reader.readLine(parts) != null )
+  while( reader.readRow(parts) != null )
   {
    int emp=0;
    for( int k=parts.size()-1; k>=0 ; k-- )

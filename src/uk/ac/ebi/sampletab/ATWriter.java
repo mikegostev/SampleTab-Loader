@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.pri.util.StringUtils;
+
 public class ATWriter
 {
  public static final int MAX_INLINE_REPEATS=3;
@@ -16,6 +18,16 @@ public class ATWriter
  public static final char TAB = '\t';
  
  private static Pattern attrPattern = Pattern.compile("^\\s*(\\S+)\\s*\\[\\s*(.+)\\s*\\]\\s*");
+ 
+ private static String cellText( String str )
+ {
+  String clt = StringUtils.escapeBy(str, '"', '"');
+  
+  if( clt != str )
+   return "\""+clt+"\"";
+  
+  return str;
+ }
  
  public static void writeAgeTab(Submission sub, OutputStream outStream) throws IOException
  {
@@ -25,7 +37,7 @@ public class ATWriter
   
   out.print( Definitions.SUBMISSION );
   out.print( TAB );
-  out.print( sub.getID() );
+  out.print( cellText(sub.getID() ) );
   
   for( Attribute attr : sub.getAnnotations() )
   {
@@ -35,9 +47,9 @@ public class ATWriter
 //    atName = atName.substring(Definitions.SUBMISSION.length()+1);
 
    out.println();
-   out.print( atName );
+   out.print( cellText( atName ) );
    out.print( TAB );
-   out.print( attr.getID() );
+   out.print( cellText( attr.getID() ) );
   }
 
   for( String atCl : sub.getAttachedClasses() )
@@ -54,12 +66,12 @@ public class ATWriter
    else
     atCl+="s";
     
-   out.print(atCl);
+   out.print( cellText(atCl ) );
    
    for( WellDefinedObject obj : objs )
    {
     out.print( TAB );
-    out.print( obj.getID() );
+    out.print( cellText( obj.getID() ) );
    }
    
   }
@@ -75,12 +87,12 @@ public class ATWriter
    out.println();
    out.println();
 //   out.print('|');
-   out.print( atCl );
+   out.print( cellText( atCl ) );
 
    for( WellDefinedObject obj : objs )
    {
     out.print( TAB );
-    out.print( obj.getID() );
+    out.print( cellText( obj.getID() ) );
    }
 
  
@@ -106,7 +118,7 @@ public class ATWriter
 //      out.print(fld.substring(atCl.length()+1) );
 //     else
      
-     out.print(fld);
+     out.print( cellText( fld ) );
 
      for( WellDefinedObject obj : objs )
      {
@@ -114,7 +126,7 @@ public class ATWriter
       
       Attribute attr = obj.getAnnotation(fld);
       
-      out.print( attr == null?"":attr.getID() );
+      out.print( attr == null?"": cellText( attr.getID() ) );
      }
      
     }
@@ -129,7 +141,7 @@ public class ATWriter
 //   out.print('|');
    out.print(Definitions.GROUP);
    out.print(TAB);
-   out.print(grp.getID());
+   out.print( cellText( grp.getID() ) );
    
    for( Attribute attr : grp.getAnnotations() )
    {
@@ -139,19 +151,19 @@ public class ATWriter
 //     attrName = attrName.substring(Definitions.SUBMISSION.length()+1);
     
     out.println();
-    out.print(attrName);
+    out.print( cellText( attrName ) );
     
     if( attr.getValuesNumber() == 1 )
     {
      out.print(TAB);
-     out.print(attr.getID());
+     out.print( cellText( attr.getID() ) );
     }
     else
     {
      for( Attribute valAt : attr.getValues() )
      {
       out.print(TAB);
-      out.print(valAt.getID());
+      out.print( cellText( valAt.getID() ) );
      }
      
     }
@@ -167,12 +179,12 @@ public class ATWriter
      atOCls+="s";
     
     out.println();
-    out.print(atOCls);
+    out.print( cellText( atOCls ) );
 
     for( WellDefinedObject o : objs )
     {
      out.print(TAB);
-     out.print(o.getID());
+     out.print( cellText( o.getID() ) );
     }
     
    }
@@ -378,14 +390,14 @@ public class ATWriter
   for( ValueExtractor extr : extrs )
   {
    out.print(TAB);
-   out.print(extr.getHeader());
+   out.print( cellText( extr.getHeader() ) );
   }
  }
  
  private static void writeSample(Sample sample, List<ValueExtractor> extrs, PrintStream out)
  {
   out.println();
-  out.print(sample.getID());
+  out.print( cellText( sample.getID() ) );
   
 //  if( sample.getID().equals("SAME074631") )
 //  {
@@ -414,7 +426,7 @@ public class ATWriter
    for( ValueExtractor ve : extrs )
    {
     out.print(TAB);
-    out.print(ve.extract());
+    out.print( cellText( ve.extract() ) );
 
     if( ve.hasValue() )
      finished = false;

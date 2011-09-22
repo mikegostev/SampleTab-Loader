@@ -18,6 +18,30 @@ public class STParser3
   return readST( StringUtils.readUnicodeFile( modFile ) );
  }
  
+ private static void split(String line, List<String> accum )
+ {
+  accum.clear();
+  
+  int cpos = 0;
+  
+  int tpos = line.indexOf("\t",cpos);
+  
+  while( tpos != -1 )
+  {
+   accum.add( line.substring(cpos,tpos) );
+   
+   cpos=tpos+1;
+   
+//   if( cpos == line.length() )
+//    return;
+   
+   tpos = line.indexOf("\t",cpos);
+  }
+  
+  accum.add( line.substring(cpos) );
+
+ }
+ 
  public static Submission readST( String text ) throws IOException
  {
   Submission sub = new Submission();
@@ -30,9 +54,23 @@ public class STParser3
   List<String> headerLine = null; 
   List<String> prevLine = null; 
   
+  String line = null;
+  
+//  split("a\tb\tc",parts);
+//  for( String s : parts )
+//   System.out.print("'"+s+"',");
+//  System.out.println("STOP");
+//
+//  split("a\tb\tc\t",parts);
+//  for( String s : parts )
+//   System.out.print("'"+s+"',");
+//  System.out.println("STOP");
+  
   int lineNum = 0;
-  while( reader.readLine(parts) != null )
+  while(  (line = reader.readLine()) != null )
   {
+   split(line, parts);
+   
    lineNum++;
    
    int emp=0;
