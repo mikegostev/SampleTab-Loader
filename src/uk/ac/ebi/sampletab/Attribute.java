@@ -1,7 +1,9 @@
 package uk.ac.ebi.sampletab;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 
@@ -99,37 +101,122 @@ public class Attribute extends AnnotatedObject
  {
   Attribute othat = (Attribute) o;
   
-  if( getValuesNumber() != othat.getValuesNumber() )
-   return false;
+//  if( getValuesNumber() != othat.getValuesNumber() )
+//   return false;
   
-  if( getValuesNumber() == 1 )
+  if( getValuesNumber() == 1  )
   {
-   if( ! getID().equals( othat.getID() ) )
-    return false;
+   if( othat.getValuesNumber() == 1 )
+     return singleEquals(othat);
+   else
+    return cmpSingleMultiple(this, othat.getValues() );
+  }
+  else
+  {
+   if( othat.getValuesNumber() == 1 )
+    return cmpSingleMultiple( othat, this.getValues() );
+   else
+    return cmpMultipleMultiple( this.getValues(), othat.getValues() );
+  }
+
+ }
+
+ private boolean singleEquals(  Attribute a2 )
+ {
+  if( getID() == null || getID().length() == 0 )
+   return a2.getID() == null || a2.getID().length() == 0;
+  else
+   return getID().equals( a2.getID() ) && super.equals(a2);
+ }
+ 
+ private static boolean cmpSingleMultiple(  Attribute a1, Collection<Attribute> mul )
+ {
+  boolean found = false;
+  
+  for( Attribute a : mul )
+  {
+   if( a.isEmpty() )
+    continue;
    
-   if( getAnnotations() != null )
+   if( a1.singleEquals(a) )
    {
-    if( othat.getAnnotations() == null || getAnnotations().size() != othat.getAnnotations().size() )
+    if( found )
      return false;
     
-    for( Attribute q : getAnnotations() )
-    {
-     Attribute othq = othat.getAnnotation( q.getName() );
-     
-     if( ! q.equals(othq) )
-      return false;
-    }
+    found = true;
    }
-   
-   return true;
+   return false;
   }
   
-  List<Attribute> myVals = getValues();
-  List<Attribute> othVals = othat.getValues();
+  return found;
+ }
+
+ private static boolean cmpMultipleMultiple(  Collection<Attribute> mul1, Collection<Attribute> mul2 )
+ {
+  List<Attribute> lst1 = new ArrayList<Attribute>( mul1.size() );
+  lst1.addAll(mul1);
+
+  List<Attribute> lst2 = new ArrayList<Attribute>( mul2.size() );
+  lst2.addAll(mul2);
   
-  for( int i=0; i < myVals.size(); i++ )
-   if( ! myVals.get(i).equals( othVals.get(i)) )
+  Comparator<Attribute> cmp = new Comparator<Attribute>(){
+
+   @Override
+   public int compare(Attribute o1, Attribute o2)
+   {
+    if( o1.isEmpty() )
+    {
+     if( o2.isEmpty() )
+      return 0;
+     else
+      return -1;
+    }
+    else
+    {
+     if( o2.isEmpty() )
+      return 1;
+     else
+      return o1.getID().compareTo(o2.getID());
+    }
+   }};
+   
+   Collections.sort(lst1, cmp);
+   Collections.sort(lst2, cmp);
+   
+   int ptr1 = 0;
+   int ptr2 = 0;
+   
+   for(; ptr1 < lst1.size() && lst1.get(ptr1).isEmpty(); ptr1++);
+
+   for(; ptr2 < lst2.size() && lst2.get(ptr2).isEmpty(); ptr2++);
+   
+   if( (lst1.size() - ptr1) != (lst2.size() - ptr2) )
     return false;
+  
+   for(; ptr1 < lst1.size(); ptr1++)
+    if( ! lst1.get(ptr1).singleEquals( lst2.get(ptr2++) ))
+     return false;
+   
+   return true;
+
+}
+
+ 
+ public boolean isEmpty()
+ {
+  if( vals == null )
+  {
+   if( getID() == null || getID().length() == 0 )
+    return true;
+   else
+    return false;
+  }
+  
+  for( Attribute a : vals )
+  {
+   if( ! a.isEmpty() )
+    return false;
+  }
   
   return true;
  }

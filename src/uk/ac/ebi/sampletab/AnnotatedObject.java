@@ -64,17 +64,32 @@ public class AnnotatedObject
   if( annotations == null )
    return false;
 
-  if( annotations.size() != othObj.getAnnotations().size() )
-   return false;
+//  if( annotations.size() != othObj.getAnnotations().size() )
+//   return false;
   
   for( Attribute myat : annotations.values() )
   {
    Attribute othAttr = othObj.getAnnotation( myat.getName() );
    
    if( othAttr == null )
+   {
+    if( myat != null && ! myat.isEmpty() )
+     return false;
+   }
+   else if( ! othAttr.equals(myat) )
     return false;
+  }
+  
+  for( Attribute othAttr : othObj.getAnnotations() )
+  {
+   Attribute myat = getAnnotation( othAttr.getName() );
    
-   if( ! othAttr.equals(myat) )
+   if( myat == null )
+   {
+    if( othAttr != null && ! othAttr.isEmpty() )
+     return false;
+   }
+   else if( ! myat.equals(othAttr) )
     return false;
   }
   
