@@ -351,6 +351,14 @@ public class ATWriter
      if(n > nDFSamples)
       nDFSamples = n;
     }
+    else
+    {
+     if(s.getGroups().size() > nGrp)
+      nGrp = s.getGroups().size();
+
+     if(s.getDeriverFromSamples().size() > nDFSamples)
+      nDFSamples = s.getDeriverFromSamples().size();
+    }
    }
    
    

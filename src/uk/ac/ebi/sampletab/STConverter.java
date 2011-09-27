@@ -7,11 +7,10 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -19,10 +18,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.commons.io.FileUtils;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
-
-import com.pri.util.StringUtils;
 
 public class STConverter
 {
@@ -36,7 +34,7 @@ public class STConverter
  
  static final String        usage = "java -jar STConverter.jar <input file/dir> [ ... <input file/dir> ]";
 
- static private Queue<InputFiles> infiles;
+ static private BlockingQueue<InputFiles> infiles;
  static private STConverterOptions options;
  
  static Log stdout = new PrintStreamLog(System.out, false);
@@ -67,34 +65,33 @@ public class STConverter
 
   infiles = new LinkedBlockingQueue<InputFiles>();
 
-
-  
-  Set<String> processedDirs = new HashSet<String>();
-  
-  for(String outf : options.getDirs())
-  {
-   File in = new File(outf);
-
-   if( ! in.exists() )
-   {
-    System.err.println("Input directory '" + outf + "' doesn't exist");
-    System.exit(1);
-   }
-   else if( ! in.isDirectory() )
-   {
-    System.err.println("'" + outf + "' is not a directory");
-    System.exit(1);
-   }
-   
-   collectInput( in, infiles, processedDirs ) ;
-
-  }
-
-  if(infiles.size() == 0)
-  {
-   System.err.println("No files to process");
-   return;
-  }
+    
+//  Set<String> processedDirs = new HashSet<String>();
+//  
+//  for(String outf : options.getDirs())
+//  {
+//   File in = new File(outf);
+//
+//   if( ! in.exists() )
+//   {
+//    System.err.println("Input directory '" + outf + "' doesn't exist");
+//    System.exit(1);
+//   }
+//   else if( ! in.isDirectory() )
+//   {
+//    System.err.println("'" + outf + "' is not a directory");
+//    System.exit(1);
+//   }
+//   
+//   collectInput( in, infiles, processedDirs, 0 ) ;
+//
+//  }
+//
+//  if(infiles.size() == 0)
+//  {
+//   System.err.println("No files to process");
+//   return;
+//  }
   
   File outDir=null;
   
@@ -172,28 +169,63 @@ public class STConverter
    return;
   }
 
-  if( infiles.size() == 1 )
-   new Converter(outDir!=null?new File(options.getDirs().get(0)):null, outDir, "Main", log, failedLog).run();
+  if( ! options.isRecursive() )
+  {
+   for(String outf : options.getDirs())
+   {
+    File in = new File(outf);
+
+    if(!in.exists())
+    {
+     System.err.println("Input file/directory '" + outf + "' doesn't exist");
+     System.exit(1);
+    }
+    else if(in.isDirectory())
+    {
+     System.err.println("'" + outf + "' is a directory");
+     System.exit(1);
+    }
+    
+    InputFiles inp = new InputFiles();
+    
+    inp.sampletab = in;
+    inp.dir = in.getParentFile();
+    
+    infiles.add(inp);
+   }
+   
+   if(infiles.size() == 0)
+   {
+    System.err.println("No files to process");
+    return;
+   }
+   
+   infiles.add(new InputFiles());
+   
+   new ConverterTask( outDir!=null?new File(options.getDirs().get(0)):null,
+     outDir, "Main", log, failedLog)
+   .run();
+   return;
+  }
   else
   {
    int nTheads = Runtime.getRuntime().availableProcessors();
-   
-   if( infiles.size() < nTheads )
-    nTheads = infiles.size();
-   
+
    log.write("Starting " + nTheads + " threads");
+
+   ExecutorService exec = Executors.newFixedThreadPool(nTheads+1);
+
+   exec.execute( new InputCollectionTask() );
    
-   ExecutorService exec = Executors.newFixedThreadPool(nTheads);
-   
-   File bDir = outDir!=null?new File(options.getDirs().get(0)):null;
-   
+   File bDir = outDir != null ? new File(options.getDirs().get(0)) : null;
+
    for(int i = 1; i <= nTheads; i++)
-    exec.execute(new Converter(bDir,outDir,"Thr"+i, log, failedLog));
-   
+    exec.execute(new ConverterTask(bDir, outDir, "Thr" + i, log, failedLog));
+
    try
    {
     exec.shutdown();
-    
+
     exec.awaitTermination(72, TimeUnit.HOURS);
    }
    catch(InterruptedException e)
@@ -201,12 +233,56 @@ public class STConverter
    }
   }
   
-  
   log.shutdown();
   failedLog.shutdown();
  }
 
- static class Converter implements Runnable
+ static class InputCollectionTask implements Runnable
+ {
+
+  @Override
+  public void run()
+  {
+   Set<String> processedDirs = new HashSet<String>();
+   
+   for(String outf : options.getDirs())
+   {
+    File in = new File(outf);
+
+    if( ! in.exists() )
+    {
+     System.err.println("Input directory '" + outf + "' doesn't exist. Skipping");
+     continue;
+    }
+    else if( ! in.isDirectory() )
+    {
+     System.err.println("'" + outf + "' is not a directory. Skipping");
+     continue;
+    }
+    
+    collectInput( in, infiles, processedDirs, 0 ) ;
+
+   }
+   
+   
+   while( true )
+   {
+    try
+    {
+     infiles.put( new InputFiles() );
+     return;
+    }
+    catch(InterruptedException e)
+    {
+    }
+   }
+
+  }
+  
+ }
+
+ 
+ static class ConverterTask implements Runnable
  {
   private String threadName;
   
@@ -219,7 +295,7 @@ public class STConverter
   
   private static DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z");
   
-  public Converter(File bDir, File oDir, String threadName, Log log, Log failedLog)
+  public ConverterTask(File bDir, File oDir, String threadName, Log log, Log failedLog)
   {
    super();
    this.threadName = threadName;
@@ -237,8 +313,33 @@ public class STConverter
 
    InputFiles f;
 
-   while((f = infiles.poll()) != null)
+   while( true )
    {
+    try
+    {
+     f = infiles.take();
+    }
+    catch(InterruptedException e1)
+    {
+     continue;
+    }
+    
+    if( f.dir == null )
+    {
+     while( true )
+     {
+      try
+      {
+       infiles.put(f);
+       return;
+      }
+      catch(InterruptedException e)
+      {
+      }
+     }
+     
+    }
+    
     String dirName = " ("+f.dir.getName()+")";
 
     try
@@ -248,20 +349,31 @@ public class STConverter
 
      long time = System.currentTimeMillis();
 
-     File subOutDir;
+     File subOutDir=null;
      
-     if( outDir != null )
+     if( options.isRecursive() )
      {
-      String relPath = f.dir.getAbsolutePath().substring( baseDir.getAbsolutePath().length() );
-      
-      if( relPath.startsWith("/") )
-       relPath=relPath.substring(1);
-      
-      subOutDir = new File(outDir, relPath+"/age");
-       
+
+      if(outDir != null)
+      {
+       String relPath = f.dir.getAbsolutePath().substring(baseDir.getAbsolutePath().length());
+
+       if(relPath.startsWith("/"))
+        relPath = relPath.substring(1);
+
+       subOutDir = new File(outDir, relPath + "/age");
+
+      }
+      else
+       subOutDir = new File(f.dir, "age");
      }
      else
-      subOutDir = new File(f.dir, "age");
+     {
+      if( outDir != null )
+       subOutDir = outDir;
+      else
+       subOutDir = f.dir;
+     }
      
      if( !subOutDir.isDirectory() && !subOutDir.mkdirs() )
      {
@@ -281,24 +393,9 @@ public class STConverter
      log.write("Parsing file: " + f.sampletab.getAbsolutePath());
     
 
-     String stContent = null;
      try
      {
-      stContent = StringUtils.readUnicodeFile(f.sampletab);
-      
-      int l = stContent.length();
-      int p=0;
-      
-      for( p=0; p < l; p++ )
-       if( stContent.charAt(p) == '[' )
-        break;
-      
-      if( p == l )
-       throw new STParseException("No [MSI] section"+dirName);
-      else if( p > 0 )
-       stContent=stContent.substring(p);
-       
-      s = STParser3.readST(stContent);
+      s = STParser4.readST(f.sampletab);
      }
      catch(Exception e)
      {
@@ -333,9 +430,13 @@ public class STConverter
      
      log.write("Converting success. " + (System.currentTimeMillis() - time) + "ms"+dirName);
 
-      PrintWriter stOut = new PrintWriter(new File(subOutDir, "source.sampletab.txt"), "UTF-8");
-      stOut.write(stContent);
-      stOut.close();
+     FileUtils.copyFile(f.sampletab, new File(subOutDir, "source.sampletab.txt"));
+     
+//     FileUtil.linkOrCopyFile(f.sampletab, new File(subOutDir, "source.sampletab.txt"));
+     
+//      PrintWriter stOut = new PrintWriter(new File(subOutDir, "source.sampletab.txt"), "UTF-8");
+//      stOut.write(stContent);
+//      stOut.close();
 
      
      File idFile = new File(subOutDir,".id");
@@ -390,16 +491,23 @@ public class STConverter
   }  
  }
  
- static void collectInput( File in, Collection<InputFiles> infiles, Set<String> processedDirs )
+ static long collectInput( File in, BlockingQueue<InputFiles> infiles, Set<String> processedDirs, long prcssd )
  {
   File[] files = in.listFiles();
   
   for( File f : files )
   {
+
    if( f.isDirectory() && ! processedDirs.contains(f.getAbsolutePath()) && options.isRecursive() )
    {
-    collectInput(f, infiles, processedDirs);
+//    System.out.println(f.getAbsolutePath());
+    prcssd++;
+
+    prcssd = collectInput(f, infiles, processedDirs, prcssd );
     processedDirs.add(f.getAbsolutePath());
+    
+    if( prcssd % 1000 == 0 )
+     System.out.println(String.valueOf(prcssd)+ " directories scanned");
    }
    else if( options.getStFileName().equals(f.getName()) && f.isFile() )
    {
@@ -408,10 +516,24 @@ public class STConverter
     ifls.dir = in;
     ifls.sampletab = f;
     
-    infiles.add( ifls );
+    while( true )
+    {
+     try
+     {
+      infiles.put(ifls);
+      break;
+     }
+     catch(InterruptedException e)
+     {
+     }
+    }
+    
+//    System.out.println( in.getAbsolutePath()+" selected");
    }
     
   }
+  
+  return prcssd;
  }
  
  

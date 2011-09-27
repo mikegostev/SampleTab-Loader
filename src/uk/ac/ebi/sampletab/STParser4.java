@@ -1,22 +1,18 @@
 package uk.ac.ebi.sampletab;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.pri.util.SpreadsheetReader;
-import com.pri.util.StringUtils;
 
-
-public class STParser3
+public class STParser4
 {
  private static int counter;
  
- public static Submission readST( File modFile ) throws IOException
- {
-  return readST( StringUtils.readUnicodeFile( modFile ) );
- }
  
  private static void split(String line, List<String> accum )
  {
@@ -42,42 +38,42 @@ public class STParser3
 
  }
  
- public static Submission readST( String text ) throws IOException
+ public static Submission readST( File stfile ) throws IOException
  {
+  String line = null;
+
+  BufferedReader reader = new BufferedReader( new InputStreamReader( new FileInputStream(stfile), "UTF-8") );
+  
+  line = reader.readLine();
+  
+  int l = line.length();
+  int pos=0;
+  
+  for( pos=0; pos < l; pos++ )
+   if( line.charAt(pos) == '[' )
+    break;
+  
+  if( pos == l || ! line.startsWith("[MSI]", pos) )
+   throw new STParseException("No [MSI] section"+stfile.getAbsolutePath());
+  
   Submission sub = new Submission();
   
-  SpreadsheetReader reader = new SpreadsheetReader( text );
   
   List<String> partsBuffer = new ArrayList<String>(100);
   
   boolean sampleSection = false;
   List<String> headerLine = null; 
-  List<String> prevLine = null; 
+
   
-  String line = null;
-  
-//  split("a\tb\tc",parts);
-//  for( String s : parts )
-//   System.out.print("'"+s+"',");
-//  System.out.println("STOP");
-//
-//  split("a\tb\tc\t",parts);
-//  for( String s : parts )
-//   System.out.print("'"+s+"',");
-//  System.out.println("STOP");
-  
-  int lineNum = 0;
+  int lineNum = 1;
   while(  (line = reader.readLine()) != null )
   {
    split(line, partsBuffer);
    
    lineNum++;
  
-   System.out.println("Line: "+lineNum);
+//   System.out.println("Line: "+lineNum);
   
-if( lineNum == 26938 )
-   System.out.println("Line: "+lineNum);
-   
    int emp=0;
    for( int k=partsBuffer.size()-1; k>=0 ; k-- )
     if( partsBuffer.get(k).trim().length() == 0 )
@@ -108,13 +104,13 @@ if( lineNum == 26938 )
      if(parts.size() != 2)
       throw new STParseException("Invalid number of values for tag: '" + p0 + "' Expected: 1");
 
-     sub.addAnnotation(new Attribute(p0, parts.get(1), reader.getLineNumber()) );
+     sub.addAnnotation(new Attribute(p0, parts.get(1), lineNum) );
      
      if( Definitions.SUBMISSIONIDENTIFIER.equals(p0) )
       sub.setID(parts.get(1));
     }
     else if( ! Definitions.propertyToObject.containsKey(p0))
-     throw new STParseException("Unknown tag: '" + p0 + "' Line: " + reader.getLineNumber());
+     throw new STParseException("Unknown tag: '" + p0 + "' Line: " + lineNum);
     else
     {
      String objName = Definitions.propertyToObject.get(p0);
@@ -140,11 +136,11 @@ if( lineNum == 26938 )
        for( Attribute attr : a.getAnnotations() )
        {
         if( p0.equals(attr.getName()) )
-         throw new STParseException("Repeting field: '"+p0+"' Line: "+reader.getLineNumber() );
+         throw new STParseException("Repeting field: '"+p0+"' Line: "+lineNum );
        }
       }
       
-      a.addAnnotation(new Attribute(p0, parts.get(i+1), reader.getLineNumber() ) );
+      a.addAnnotation(new Attribute(p0, parts.get(i+1), lineNum ) );
      }
     } 
    }
@@ -158,12 +154,12 @@ if( lineNum == 26938 )
       headerLine.add( p.trim() );
      
      if( ! headerLine.get(0).equals(Definitions.SAMPLENAME) )
-      throw new STParseException("The first column should be "+Definitions.SAMPLENAME+" Line: "+reader.getLineNumber());
+      throw new STParseException("The first column should be "+Definitions.SAMPLENAME+" Line: "+lineNum);
     }
     else
     {
      if( parts.size() > headerLine.size() )
-      throw new STParseException("Some values are beyond the annotation. Line: "+reader.getLineNumber());
+      throw new STParseException("Some values are beyond the annotation. Line: "+lineNum);
      
      Sample lastSample = null;
      Sample sample = null;
@@ -279,7 +275,7 @@ if( lineNum == 26938 )
        if( firstDefLine )
        {
         if( attribute == null )
-         throw new STParseException("Invalid tag position. Line: "+reader.getLineNumber()+" Col: "+(i+1));
+         throw new STParseException("Invalid tag position. Line: "+lineNum+" Col: "+(i+1));
         
         
         if( cellVal.length() > 0 )
@@ -294,7 +290,7 @@ if( lineNum == 26938 )
        if( firstDefLine )
        {
         if( attribute == null )
-         throw new STParseException("Invalid tag position. Line: "+reader.getLineNumber()+" Col: "+(i+1));
+         throw new STParseException("Invalid tag position. Line: "+lineNum+" Col: "+(i+1));
         
         
         if( cellVal.length() > 0 )
@@ -327,11 +323,12 @@ if( lineNum == 26938 )
 //     TimeLog.reportEvent("Line read "+p0);
 
      
-     prevLine = parts;
     }
     
    }
   }
+  
+  reader.close();
   
   
   List<WellDefinedObject> tsrs = sub.getAttachedObjects( Definitions.TERMSOURCE );
